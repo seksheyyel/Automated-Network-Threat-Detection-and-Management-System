@@ -1,22 +1,20 @@
-# Host-Based Automated Network Threat Detection and Management System (ThreatMon)
+# Automated Network Threat Detection and Management System (ThreatMon)
 
 ## About the Project
 
-ThreatMon is a **Host-Based Intrusion Detection System (HIDS)** developed using **Python, Flask, Scapy, and MySQL**. It automatically monitors the network traffic of the computer where it is installed and detects common network threats such as:
+ThreatMon is an **Automated Network Threat Detection and Management System** developed using **Python, Flask, Scapy, and MySQL**. It automatically monitors network traffic on the computer where it is installed and detects common network threats such as:
 
 - ARP Spoofing
 - DDoS Attacks
 - Port Scanning
 
-When a threat is detected, the system automatically records the event in the database and displays an alert through a web-based dashboard.
-
-Since ThreatMon is a **Host-Based IDS**, it protects only the device where it is installed. To protect multiple devices, the application should be installed on each computer.
+When a threat is detected, the system automatically records the event in the database and displays an alert through a web-based dashboard. It provides administrators with real-time monitoring, threat detection, and security event management to help protect the monitored device from potential network attacks.
 
 ---
 
 ## Purpose
 
-The purpose of this project is to provide an automated host-based network security solution that monitors network traffic in real time, detects common network threats, and helps administrators monitor the security of the protected device through a web-based dashboard.
+The purpose of this project is to provide an automated network security solution that monitors network traffic in real time, detects common network threats, records security events, and assists administrators in managing and responding to detected threats through a web-based dashboard.
 
 ---
 
