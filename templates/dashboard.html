@@ -9,6 +9,7 @@
         rel="stylesheet">
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.css">
     <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+    <script src="{{ url_for('static', filename='alert-sound.js') }}"></script>
 </head>
 
 <body>
@@ -175,30 +176,6 @@
         }
         setInterval(updateClock, 1000);
         updateClock();
-
-        /* ── Alert sound ── */
-        const AudioCtx = window.AudioContext || window.webkitAudioContext;
-        const audioCtx = new AudioCtx();
-        document.addEventListener('click', () => {
-            if (audioCtx.state === 'suspended') audioCtx.resume();
-        }, { once: true });
-
-        function playAlertSound() {
-            const beep = (freq, start, dur) => {
-                const osc = audioCtx.createOscillator();
-                const gain = audioCtx.createGain();
-                osc.connect(gain);
-                gain.connect(audioCtx.destination);
-                osc.type = 'square';
-                osc.frequency.value = freq;
-                gain.gain.setValueAtTime(0.5, audioCtx.currentTime + start);
-                gain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + start + dur);
-                osc.start(audioCtx.currentTime + start);
-                osc.stop(audioCtx.currentTime + start + dur);
-            };
-            beep(880, 0, 0.18);
-            beep(1046, 0.2, 0.18);
-        }
 
         function showAlertToast(alert) {
             const toast = document.createElement('div');
@@ -430,7 +407,6 @@
                 updateDonut(allAlerts);
                 renderTable(getDisplayed());
                 if (isNewAlert) {
-                    playAlertSound();
                     showAlertToast(allAlerts[0]);
                 }
             } catch (e) {
