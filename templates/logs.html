@@ -11,6 +11,7 @@
         rel="stylesheet">
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.css">
     <script src="{{ url_for('static', filename='alert-sound.js') }}"></script>
+    <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
 </head>
 
 <body>
@@ -73,7 +74,7 @@
                     <input class="search-input" id="searchInput" type="text" placeholder="Search username, IP, action…"
                         autocomplete="off">
                 </div>
-                <button class="export-btn" id="exportBtn">⬇ Export CSV</button>
+                <button class="export-btn" id="exportBtn">⬇ Export Excel</button>
             </div>
 
             <div class="result-count" id="resultCount"></div>
@@ -132,6 +133,8 @@
             let list = allLogs;
             if (activeFilter === 'failed') {
                 list = list.filter(l => l.status === 'failed');
+            } else if (activeFilter === 'Delete Alert') {
+                list = list.filter(l => l.action && l.action.startsWith('Delete Alert'));
             } else if (activeFilter !== 'all') {
                 list = list.filter(l => l.action === activeFilter);
             }
@@ -238,22 +241,25 @@
             renderTable();
         });
 
-        /* Export CSV */
+        /* Export Excel */
         document.getElementById('exportBtn').addEventListener('click', () => {
             const list = getFiltered();
             if (!list.length) return;
             const header = ['Log ID', 'Username', 'Action', 'IP Address', 'Status', 'Date & Time'];
-            const rows = list.map(l => [
-                l.id, l.username, l.action, l.ip_address, l.status, l.created_at
-            ].map(v => `"${String(v ?? '').replace(/"/g, '""')}"`).join(','));
-            const csv = [header.join(','), ...rows].join('\n');
-            const blob = new Blob([csv], { type: 'text/csv' });
-            const url = URL.createObjectURL(blob);
-            const a = document.createElement('a');
-            a.href = url;
-            a.download = `audit-logs-${new Date().toISOString().slice(0, 10)}.csv`;
-            a.click();
-            URL.revokeObjectURL(url);
+            const rows = list.map(l => [l.id, l.username, l.action, l.ip_address, l.status, l.created_at]);
+
+            const sheet = XLSX.utils.aoa_to_sheet([header, ...rows]);
+            sheet['!cols'] = [
+                { wch: 8 },  // Log ID
+                { wch: 16 }, // Username
+                { wch: 28 }, // Action
+                { wch: 16 }, // IP Address
+                { wch: 10 }, // Status
+                { wch: 20 }, // Date & Time
+            ];
+            const workbook = XLSX.utils.book_new();
+            XLSX.utils.book_append_sheet(workbook, sheet, 'Audit Logs');
+            XLSX.writeFile(workbook, `audit-logs-${new Date().toISOString().slice(0, 10)}.xlsx`);
         });
 
         /* Fetch logs once on load */
