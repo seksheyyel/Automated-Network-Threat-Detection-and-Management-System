@@ -1,8 +1,8 @@
-# Automated Network Threat Detection and Management System (ThreatMon)
+# Automated Network Threat Detection and Management System
 
 ## About the Project
 
-ThreatMon is an **Automated Network Threat Detection and Management System** developed using **Python, Flask, Scapy, and MySQL**. It automatically monitors network traffic on the computer where it is installed and detects common network threats such as:
+The Automated Network Threat Detection and Management System is developed using **Python, Flask, Scapy, and MySQL**. It automatically monitors network traffic on the computer where it is installed and detects common network threats such as:
 
 - ARP Spoofing
 - DDoS Attacks
