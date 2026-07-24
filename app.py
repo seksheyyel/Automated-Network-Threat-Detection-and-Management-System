@@ -1,6 +1,6 @@
 import os, json, hashlib, socket, threading, time
 from collections import defaultdict
-from datetime import datetime
+from datetime import datetime, timedelta
 from functools import wraps
 from threading import Lock
 
@@ -9,6 +9,8 @@ import mysql.connector
 from scapy.all import sniff, ARP, IP, TCP, UDP
 
 DB_CONFIG = {'host': 'localhost', 'user': 'root', 'password': '', 'database': 'network_monitor'}
+
+ALERT_RETENTION_DAYS = 30
 
 
 def db():
@@ -53,6 +55,42 @@ def get_alerts():
             r['details'] = json.loads(r['details'])
         r['timestamp'] = str(r['timestamp'])
     return rows
+
+
+def delete_alert(alert_id):
+    conn = db()
+    cur = conn.cursor()
+    cur.execute("DELETE FROM network_alerts WHERE id=%s", (alert_id,))
+    conn.commit()
+    deleted = cur.rowcount > 0
+    cur.close()
+    conn.close()
+    return deleted
+
+
+def delete_all_alerts():
+    conn = db()
+    cur = conn.cursor()
+    cur.execute("DELETE FROM network_alerts")
+    conn.commit()
+    removed = cur.rowcount
+    cur.close()
+    conn.close()
+    return removed
+
+
+def cleanup_old_alerts(days=ALERT_RETENTION_DAYS):
+    cutoff = datetime.now() - timedelta(days=days)
+    conn = db()
+    cur = conn.cursor()
+    cur.execute("DELETE FROM network_alerts WHERE timestamp < %s", (cutoff,))
+    conn.commit()
+    removed = cur.rowcount
+    cur.close()
+    conn.close()
+    if removed:
+        print(f"[CLEANUP] Removed {removed} alert(s) older than {days} days")
+    return removed
 
 
 def get_own_ips():
@@ -127,14 +165,14 @@ def get_best_interface():
 
 
 class ArpSpoofDetector:
-    WINDOW, THRESHOLD, COOLDOWN = 30, 3, 15
+    WINDOW, THRESHOLD, COOLDOWN = 30, 3, 30
 
     def __init__(self):
         self.trusted_mac = {}
         self.history = defaultdict(list)
         self.last_alert = {}
         self.lock = Lock()
-
+    
     def detect(self, pkt):
         if not pkt.haslayer(ARP) or pkt[ARP].op != 2:
             return
@@ -170,7 +208,7 @@ class ArpSpoofDetector:
 
 
 class DDoSDetector:
-    WINDOW, THRESHOLD, COOLDOWN = 3, 1000, 15
+    WINDOW, THRESHOLD, COOLDOWN = 3, 1000, 30
 
     def __init__(self):
         self.stats = defaultdict(lambda: {'count': 0, 'start': time.time(), 'last_alert': 0})
@@ -330,6 +368,7 @@ def dashboard():
 @app.route('/alert')
 @login_required
 def alert():
+    cleanup_old_alerts()
     return render_template('alerts.html', user=session['admin'])
 
 
@@ -348,7 +387,32 @@ def whitelist():
 @app.route('/api/alerts')
 @api_login_required
 def api_alerts():
+    cleanup_old_alerts()
     return jsonify({'alerts': get_alerts()})
+
+
+@app.route('/api/alerts/<int:alert_id>', methods=['DELETE'])
+@api_login_required
+def api_alert_delete(alert_id):
+    try:
+        deleted = delete_alert(alert_id)
+        if not deleted:
+            return jsonify({'success': False, 'message': 'Alert not found.'}), 404
+        log_action(f'Delete Alert (ID {alert_id})', username=session.get('admin', ''), user_id=session.get('admin_id'))
+        return jsonify({'success': True})
+    except Exception as exc:
+        return jsonify({'success': False, 'message': str(exc)}), 500
+
+
+@app.route('/api/alerts', methods=['DELETE'])
+@api_login_required
+def api_alerts_delete_all():
+    try:
+        removed = delete_all_alerts()
+        log_action(f'Delete Alert (All - {removed} removed)', username=session.get('admin', ''), user_id=session.get('admin_id'))
+        return jsonify({'success': True, 'removed': removed})
+    except Exception as exc:
+        return jsonify({'success': False, 'message': str(exc)}), 500
 
 
 @app.route('/api/whitelist')
@@ -405,5 +469,6 @@ def api_logs():
 
 
 if __name__ == '__main__':
+    cleanup_old_alerts()
     threading.Thread(target=capture_loop, daemon=True).start()
     app.run(debug=False)
