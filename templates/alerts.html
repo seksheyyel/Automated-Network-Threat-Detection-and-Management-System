@@ -9,6 +9,45 @@
         rel="stylesheet">
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.css">
     <script src="{{ url_for('static', filename='alert-sound.js') }}"></script>
+    <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+    <style>
+        .toolbar .export-btn {
+            margin-left: 0;
+        }
+
+        .toolbar .export-btn:last-of-type {
+            margin-left: auto;
+        }
+
+        .delete-all-btn {
+            background: rgba(255, 70, 70, 0.12);
+            border: 1px solid rgba(255, 70, 70, 0.4);
+            color: #ff6b6b;
+        }
+
+        .delete-all-btn:hover {
+            background: rgba(255, 70, 70, 0.22);
+        }
+
+        .alert-card-header {
+            position: relative;
+        }
+
+        .delete-alert-btn {
+            margin-left: auto;
+            background: transparent;
+            border: none;
+            color: #ff6b6b;
+            font-size: 1rem;
+            cursor: pointer;
+            padding: 4px 8px;
+            border-radius: 4px;
+        }
+
+        .delete-alert-btn:hover {
+            background: rgba(255, 70, 70, 0.15);
+        }
+    </style>
 </head>
 
 <body>
@@ -67,7 +106,8 @@
                     <input class="search-input" id="searchInput" type="text" placeholder="Search IP, type, details…"
                         autocomplete="off">
                 </div>
-                <button class="export-btn" id="exportBtn">⬇ Export CSV</button>
+                <button class="export-btn" id="exportBtn">⬇ Export Excel</button>
+                <button class="export-btn delete-all-btn" id="deleteAllBtn">🗑 Delete All</button>
             </div>
             <div class="result-count" id="resultCount"></div>
 
@@ -165,6 +205,7 @@
                     ${badge}
                     <span class="alert-title">${a.alert_type}</span>
                     <span class="alert-time">${a.timestamp}</span>
+                    <button class="delete-alert-btn" title="Delete alert" onclick="deleteAlert(${a.id})">🗑</button>
                 </div>
                 <div class="alert-card-body">
                     <p class="alert-desc">${d.description}</p>
@@ -196,8 +237,45 @@
             feedEl.innerHTML = alerts.map(buildCard).join('');
         }
 
-        /* ── CSV Export ── */
-        function exportCSV() {
+        /* ── Delete individual alert ── */
+        async function deleteAlert(alertId) {
+            if (!confirm('Are you sure you want to delete this alert?')) return;
+
+            try {
+                const res = await fetch(`/api/alerts/${alertId}`, { method: 'DELETE' });
+                const data = await res.json();
+                if (!data.success) {
+                    alert(data.message || 'Failed to delete alert.');
+                    return;
+                }
+                await fetchAlerts();
+            } catch (err) {
+                console.error('Failed to delete alert:', err);
+                alert('Failed to delete alert.');
+            }
+        }
+
+        /* ── Delete all alerts ── */
+        async function deleteAllAlerts() {
+            if (!allAlerts.length) return;
+            if (!confirm('Are you sure you want to delete ALL alerts? This cannot be undone.')) return;
+
+            try {
+                const res = await fetch('/api/alerts', { method: 'DELETE' });
+                const data = await res.json();
+                if (!data.success) {
+                    alert(data.message || 'Failed to delete alerts.');
+                    return;
+                }
+                await fetchAlerts();
+            } catch (err) {
+                console.error('Failed to delete all alerts:', err);
+                alert('Failed to delete all alerts.');
+            }
+        }
+
+        /* ── Excel Export ── */
+        function exportExcel() {
             const alerts = getDisplayedAlerts();
             if (!alerts.length) return;
 
@@ -216,20 +294,18 @@
             };
 
             const header = ['Timestamp', 'Source IP', 'Alert Type', 'Details'];
-            const rows = alerts.map(a =>
-                [a.timestamp, a.source_ip, a.alert_type, summarize(a)]
-                    .map(v => `"${String(v).replace(/"/g, '""')}"`)
-                    .join(',')
-            );
+            const rows = alerts.map(a => [a.timestamp, a.source_ip, a.alert_type, summarize(a)]);
 
-            const csv = [header.join(','), ...rows].join('\n');
-            const blob = new Blob([csv], { type: 'text/csv' });
-            const url = URL.createObjectURL(blob);
-            const link = document.createElement('a');
-            link.href = url;
-            link.download = `threatmon-alerts-${new Date().toISOString().slice(0, 10)}.csv`;
-            link.click();
-            URL.revokeObjectURL(url);
+            const sheet = XLSX.utils.aoa_to_sheet([header, ...rows]);
+            sheet['!cols'] = [
+                { wch: 20 }, // Timestamp
+                { wch: 16 }, // Source IP
+                { wch: 16 }, // Alert Type
+                { wch: 50 }, // Details
+            ];
+            const workbook = XLSX.utils.book_new();
+            XLSX.utils.book_append_sheet(workbook, sheet, 'Alerts');
+            XLSX.writeFile(workbook, `threatmon-alerts-${new Date().toISOString().slice(0, 10)}.xlsx`);
         }
 
         /* ── Event listeners ── */
@@ -239,7 +315,8 @@
             renderFeed();
         });
 
-        document.getElementById('exportBtn').addEventListener('click', exportCSV);
+        document.getElementById('exportBtn').addEventListener('click', exportExcel);
+        document.getElementById('deleteAllBtn').addEventListener('click', deleteAllAlerts);
 
         document.querySelectorAll('.filter-btn').forEach(btn => {
             btn.addEventListener('click', () => {
